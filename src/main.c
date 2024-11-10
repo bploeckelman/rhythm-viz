@@ -1,36 +1,30 @@
-/*
-Raylib example file.
-This is an example main file for a simple raylib project.
-Use this as a starting point or replace it with your code.
-
-For a C++ project simply rename the file to .cpp and re-run the build script 
-
--- Copyright (c) 2020-2024 Jeffery Myers
---
---This software is provided "as-is", without any express or implied warranty. In no event 
---will the authors be held liable for any damages arising from the use of this software.
-
---Permission is granted to anyone to use this software for any purpose, including commercial 
---applications, and to alter it and redistribute it freely, subject to the following restrictions:
-
---  1. The origin of this software must not be misrepresented; you must not claim that you 
---  wrote the original software. If you use this software in a product, an acknowledgment 
---  in the product documentation would be appreciated but is not required.
---
---  2. Altered source versions must be plainly marked as such, and must not be misrepresented
---  as being the original software.
---
---  3. This notice may not be removed or altered from any source distribution.
-
-*/
-
 #include "raylib.h"
 #include "raymath.h"
+#include "rlgl.h"
 
 #include "imgui.h"
 #include "rlImGui.h"
 
 #include "resource_dir.h"
+
+struct Assets
+{
+	Texture wabbit;
+};
+typedef struct Assets Assets;
+
+struct State
+{
+	Camera2D camera;
+};
+typedef struct State State;
+
+Assets assets = {0};
+State state = {0};
+
+void update();
+void draw();
+void drawUI();
 
 int main ()
 {
@@ -44,27 +38,80 @@ int main ()
 	// Utility function from resource_dir.h to find the resources folder and set it as the current working directory so we can load from it
 	SearchAndSetResourceDir("resources");
 
-	Texture wabbit = LoadTexture("wabbit_alpha.png");
+	assets.wabbit = LoadTexture("wabbit_alpha.png");
+
+	state.camera.zoom = 1.0f;
 	
 	while (!WindowShouldClose())
 	{
-		BeginDrawing();
-		ClearBackground(BLACK);
-
-		DrawText("Hello Raylib", 200,200,20,WHITE);
-		DrawTexture(wabbit, 400, 200, WHITE);
-
-		rlImGuiBegin();
-		bool open = true;
-		ImGui::ShowDemoWindow(&open);
-		rlImGuiEnd();
-		
-		EndDrawing();
+		update();
+		draw();
 	}
 
-	UnloadTexture(wabbit);
+	UnloadTexture(assets.wabbit);
 
 	rlImGuiShutdown();
 	CloseWindow();
 	return 0;
+}
+
+void update()
+{
+	// translate
+	if (IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+	{
+		Vector2 delta = GetMouseDelta();
+		delta = Vector2Scale(delta, -1.0f / state.camera.zoom);
+		state.camera.target = Vector2Add(state.camera.target, delta);
+	}
+
+	// zoom
+	float wheel = GetMouseWheelMove();
+	if (wheel != 0)
+	{
+		Vector2 mouseWorldPos = GetScreenToWorld2D(GetMousePosition(), state.camera);
+		state.camera.offset = GetMousePosition();
+		state.camera.target = mouseWorldPos;
+
+		float scaleFactor = 1.0f + (0.25f * fabsf(wheel));
+		if (wheel < 0) scaleFactor = 1.0f / scaleFactor;
+		state.camera.zoom = Clamp(state.camera.zoom * scaleFactor, 0.125f, 64.0f);
+	}
+}
+
+void draw()
+{
+	BeginDrawing();
+
+	static const Color bg = { 30, 30, 30, 255 };
+	ClearBackground(bg);
+
+	BeginMode2D(state.camera);
+	{
+		// background grid
+		rlPushMatrix();
+		rlTranslatef(0, 25 * 50, 0);
+		rlRotatef(90, 1, 0, 0);
+		{
+			DrawGrid(100, 50);
+		}
+		rlPopMatrix();
+
+		DrawText("Hello Raylib", 200,200,20,WHITE);
+		DrawTexture(assets.wabbit, 400, 200, WHITE);
+	}
+	EndMode2D();
+
+	drawUI();
+
+	EndDrawing();
+}
+
+void drawUI()
+{
+	static bool open = true;
+
+	rlImGuiBegin();
+	ImGui::ShowDemoWindow(&open);
+	rlImGuiEnd();
 }
